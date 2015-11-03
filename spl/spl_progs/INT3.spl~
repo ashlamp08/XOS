@@ -1,0 +1,151 @@
+//--------------------------------------------------------
+//	INTERRUPT ROUTINE 3
+//	HAS SEEK AND READ FEATURE
+//--------------------------------------------------------
+
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+// Getting system call number from the stack and putting it in a register
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+
+
+if (sysCallNo == 6) then 	//Implementing seek system call
+
+// Store arguments in register
+
+	alias fileDes S2;
+	alias newlseek S3;
+
+	fileDes = [physicalSP - 4];
+	newlseek = [physicalSP - 3];
+
+	if((fileDes < 0) || (fileDes > 7)) then		//invalid FileDescriptor
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias currentPCB S4;
+	currentPCB = READY_LIST + 32*((PTBR - 1024) / 8);	//finding current PCB
+		
+	S5 = fileDes*2 + 15;	
+
+	if([currentPCB + S5] == -1) then		//invalid entry
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias pointer S6;
+	alias LSEEK S7;
+
+	pointer = [currentPCB + S5];			//store pointer to SWOFT
+	LSEEK = [currentPCB + S5 + 1];		//store LSEEK position
+
+	alias fsize S8;
+
+	fsize = [FAT + [FILE_TABLE + pointer]*8 + 1];	//file size
+
+	if (newlseek == 0) then
+		[currentPCB + S5 + 1] = newlseek;	//new LSEEK set
+	else		
+		if((LSEEK + newlseek)<0 || (newlseek + LSEEK)>=fsize) then	//invalid new LSEEK
+			[physicalSP - 2] = -1;
+			ireturn;
+		else
+			[currentPCB + S5 + 1] = LSEEK + newlseek;	//new LSEEK set
+		endif;
+	endif;
+
+	[physicalSP - 2] = 0;	//return success;
+	ireturn;
+endif;
+
+
+
+
+if (sysCallNo == 7) then		//implementing read system call
+
+	// Store arguments in register
+
+	alias fileDes S2;
+	alias data S3;
+
+	fileDes = [physicalSP - 4];
+	data = [physicalSP - 3];
+
+	if((fileDes < 0) || (fileDes > 7)) then		//invalid FileDescriptor
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias currentPCB S4;
+	currentPCB = READY_LIST + 32*((PTBR - 1024) / 8);	//finding current PCB
+		
+	S5 = fileDes*2 + 15;	
+
+	if([currentPCB + S5] == -1) then		//invalid entry
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias pointer S6;
+	alias LSEEK S7;
+
+	pointer = [currentPCB + S5];			//store pointer to SWOFT
+	LSEEK = [currentPCB + S5 + 1];		//store LSEEK position
+
+	alias basic S8;
+
+	basic = [FAT + [FILE_TABLE + pointer]*8 + 2];	//basic block
+
+	load(1,basic);				//load basic block to scratchpad
+
+	if(LSEEK == [FAT + [FILE_TABLE + pointer]*8 + 1]) then	//LSEEK at the end of file
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias j S2;
+
+	j = [SCRATCHPAD + LSEEK/512];   //data block
+
+	load(1,j);				//load data block to scratchpad 
+
+	data = [SCRATCHPAD + LSEEK%512];	//reading data
+
+	[physicalSP - 3] = data;
+
+	LSEEK = LSEEK + 1;			//increment LSEEK
+
+	[currentPCB + S5 + 1] = LSEEK;		//store LSEEK in PCB
+	
+	[physicalSP - 2] = 0;	//return success;
+	ireturn;
+endif;
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,174 @@
+//--------------------------------------------------------
+//	INTERRUPT ROUTINE 1 
+//	HAS OPEN FILE AND CLOSE FILE FEATURE
+//--------------------------------------------------------
+
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+// Getting system call number from the stack and putting it in a register
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+
+
+
+if (sysCallNo == 2) then		//Implementation of Open system call
+
+	// Getting arguement filename from stack and storing in register
+
+	alias filename S2;
+	filename = [physicalSP - 3];
+	
+	alias i S3;
+	alias found S4;
+	alias j S5;
+		
+	found = 0;	
+	i = 0;
+
+	while ((i<64)) do		//checking if the file is there in FAT
+		if (filename == [FAT + (8*i)]) then
+			found = 1;
+			break;
+		endif;		
+		i = i+1;
+	endwhile;
+
+	if (found == 0) then		// file is not found
+		print("NOT IN FAT");
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+	
+	j = 0;
+
+	while (j<128) do		//checking if the file is open in system wide open file table
+		S4 = [FILE_TABLE + j];
+		if(S4 != -1) then
+			if(filename == [FAT + 8*S4]) then 
+				break;
+			endif;
+		endif;
+		j = j+2;
+	endwhile;
+
+	if (j == 128) then		//checking for new entry location in system wide open file table
+		j = 0;	
+		while (j<128 && ([FILE_TABLE + j]!=-1)) do
+			j = j+2;
+		endwhile;
+		
+		if(j >= 128) then 	//no space in system wide open file table
+			print("NO space in SWOFT");
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+	endif;
+
+	alias currentPCB S6;
+	currentPCB = READY_LIST + 32*((PTBR - 1024) / 8);	//finding current PCB
+
+	alias counter S7;		
+	counter = 15;
+
+	while(counter < 30) do		// checking for free PPOF entry
+		if([currentPCB + counter] == -1) then
+			break;
+		endif;
+		counter = counter + 2;
+	endwhile;
+
+	if(counter > 30) then		//no space free for PPOFT entry
+		print("NO space PPOFT");		
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	///// Setting the pointer to SWOFT entry in PPOFT at available location
+
+	[currentPCB + counter + 0] = j;		//pointer
+	[currentPCB + counter + 1] = 0;		//LSEEK
+		
+	///// Setting the pointer to FAT entry in SWOFT at available location
+
+	[FILE_TABLE + j + 0] = i;		//pointer
+	S1 = [FILE_TABLE + j + 1];	
+	[FILE_TABLE + j + 1] = S1 + 1;	//file open count
+	
+	S8 = (counter - 15)/2;
+
+	[physicalSP - 2] = S8;	//return index of the pointer to SWOFT entry from PPOFT
+	ireturn;
+endif;	
+
+
+
+
+
+
+if (sysCallNo == 3) then		//Implementation of close system call
+	
+	//Get the arguement fileDescriptor from the stack
+
+	alias fileDes S2;
+	fileDes = [physicalSP - 3];
+
+	if((fileDes < 0) || (fileDes > 7)) then		//invalid FileDescriptor
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias currentPCB S3;
+	currentPCB = READY_LIST + 32*((PTBR - 1024) / 8);	//finding current PCB
+		
+	S4 = fileDes*2 + 15;	
+
+	if([currentPCB + S4] == -1) then		//invalid entry
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	S5 = [currentPCB + S4];
+	
+	S1 = [FILE_TABLE + S5 + 1];	
+
+	[FILE_TABLE + S5 + 1] =  S1 - 1; //decrement the file open count
+
+	if([FILE_TABLE + S5 + 1] == 0) then	//if file is no more open anywhere, set FAT Index entry to -1
+		[FILE_TABLE + S5] = -1;
+	endif;
+
+	[currentPCB + S4 + 0] = -1;	//Invalidating the PPOFT entry
+	[currentPCB + S4 + 1] = -1;
+
+	[physicalSP - 2] = 0;	//returning with success
+	ireturn;
+endif;
+
+ 
+	
+
+
+
+			
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		
+		

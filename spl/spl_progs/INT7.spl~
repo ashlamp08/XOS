@@ -1,0 +1,229 @@
+//--------------------------------------------------------
+//	INTERRUPT ROUTINE 7
+//	HAS EXIT SYSTEM CALL
+//--------------------------------------------------------
+
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+// Getting system call number from the stack and putting it in a register
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+if (sysCallNo == 10) then		//Implementation of Exit system call
+	alias i S2;
+	alias j S5;
+	alias currentPCB S3;		//exit the current process	
+	alias currentPID S4;
+
+	currentPID = (PTBR - 1024)/8;
+	currentPCB = READY_LIST + currentPID*32;
+		
+	i = 0;
+	
+	while(i<32) do 			//resume the waiting processes
+		if([READY_LIST + i*32 + 1] == (100+currentPID)) then		
+			[READY_LIST + i*32 + 1] = 1;
+		endif;
+		i = i + 1;
+	endwhile;
+
+	i = 0;
+					//Checking for Ready processes
+	while(i<32) do
+		if([READY_LIST + i*32 + 1] == 1) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+
+	if(i==32) then			//no Ready Processes
+		halt;
+	endif;
+
+	alias fileDes S6;	
+
+	fileDes = 0;
+	
+	while(fileDes<8) do			//close all open files
+		i = fileDes*2 + 15;	
+
+		if([currentPCB + i]!=-1) then		//close the file
+			j = [currentPCB + i];
+			S6 = [FILE_TABLE + j + 1];	
+
+			S6 = S6 - 1;	
+
+			if(S6 == 0) then	//if file is no more open anywhere, set FAT Index entry to -1
+				[FILE_TABLE + j] = -1;
+			endif;
+
+			[currentPCB + i + 0] = -1;	//Invalidating the PPOFT entry
+			[currentPCB + i + 1] = -1;
+		endif;
+	
+		fileDes = fileDes + 1;
+	endwhile;	
+
+	[currentPCB + 1] = 0; 			//current process terminated
+
+	i = 0;
+
+	while(i<4) do				//update memory free list and invalidate pagetable entries
+		if([PTBR + 1]=="01" || [PTBR + 1]=="11") then		
+			[MEM_LIST + [PTBR + i*2]] = 0;
+		endif;
+		[PTBR + i*2] = -1;
+		[PTBR + i*2 + 1] = "00";
+		i = i + 1;
+	endwhile;
+
+	i = 0;
+
+	while(i<32) do				//finding the next ready state
+		if([READY_LIST + 32*i + 1] == 1) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+
+	currentPID = i;
+
+	print(currentPID);
+
+	currentPCB = READY_LIST + 32*currentPID;
+
+	[currentPCB + 1] = 2;                           //setting STATE to RUNNING
+
+	BP = [currentPCB + 2];                          //Loading register values
+	SP = [currentPCB + 3];
+
+	PTBR = [currentPCB + 5];                      
+	PTLR = [currentPCB + 6];
+
+	R0 = [currentPCB + 7];
+	R1 = [currentPCB + 8];
+	R2 = [currentPCB + 9];
+	R3 = [currentPCB + 10];
+	R4 = [currentPCB + 11];
+	R5 = [currentPCB + 12];
+	R6 = [currentPCB + 13];
+	R7 = [currentPCB + 14];
+
+	SP = SP + 1;			//Pushing the ip from PCB to stack
+	
+	physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+	[physicalSP] = [currentPCB + 4];
+
+	breakpoint;	
+
+	ireturn;
+endif;
+
+
+if (sysCallNo == 13) then			//implementing wait system call
+	
+//	print("in wait");
+	breakpoint;
+
+	alias WaitingPID S2;
+	alias currentPID S3;
+	alias currentPCB S5;
+	alias i S4;
+
+	WaitingPID = [physicalSP - 3];
+	currentPID = (PTBR - 1024)/8;
+
+	S4 = [READY_LIST + WaitingPID*32 + 1];
+
+	if(WaitingPID<0 || WaitingPID>31 || (S4 == 2) || (S4 == 0)) then
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	[READY_LIST + currentPID*32 + 1] = 100 + WaitingPID; 
+	
+	currentPCB = READY_LIST + 32*currentPID;	//finding current PCB from PID
+
+	[currentPCB + 2] = BP;				//asigning register values
+	[currentPCB + 3] = SP - 1;			
+
+	[currentPCB + 4] = [physicalSP];		//Save IP to PCB
+
+	[currentPCB + 5] = PTBR;			//saving registers		
+	[currentPCB + 6] = PTLR;
+
+	[currentPCB + 7] = R0;
+	[currentPCB + 8] = R1;
+	[currentPCB + 9] = R2;
+	[currentPCB + 10] = R3;
+	[currentPCB + 11] = R4;
+	[currentPCB + 12] = R5;
+	[currentPCB + 13] = R6;
+	[currentPCB + 14] = R7;
+	
+
+	i = 0;
+
+	while(i<32) do				//finding the next ready state
+		if([READY_LIST + 32*i + 1] == 1) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+
+	currentPID = i;
+
+	currentPCB = READY_LIST + 32*currentPID;
+
+	[currentPCB + 1] = 2;                           //setting STATE to RUNNING
+
+	BP = [currentPCB + 2];                          //Loading register values
+	SP = [currentPCB + 3];
+
+	PTBR = [currentPCB + 5];                      
+	PTLR = [currentPCB + 6];
+
+	R0 = [currentPCB + 7];
+	R1 = [currentPCB + 8];
+	R2 = [currentPCB + 9];
+	R3 = [currentPCB + 10];
+	R4 = [currentPCB + 11];
+	R5 = [currentPCB + 12];
+	R6 = [currentPCB + 13];
+	R7 = [currentPCB + 14];
+
+	SP = SP + 1;			//Pushing the ip from PCB to stack
+	
+	[physicalSP - 2] = 0;
+	physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+	[physicalSP] = [currentPCB + 4];	
+
+	ireturn;
+endif;
+
+if (sysCallNo == 14) then			//implementing signal system call
+	
+	alias i S2;
+	alias currentPID S3;
+
+	currentPID = (PTBR - 1024)/8;
+	
+	i = 0;
+	
+	while(i<32) do 			//resume the waiting processes
+		if([READY_LIST + i*32 + 1] == (100+currentPID)) then		
+			[READY_LIST + i*32 + 1] = 1;
+		endif;
+		i = i + 1;
+	endwhile;
+
+	[physicalSP - 2] = 0;
+
+	ireturn;
+endif;
+
+[physicalSP - 2] = -1;
+ireturn;

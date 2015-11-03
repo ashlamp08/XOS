@@ -1,0 +1,184 @@
+//--------------------------------------------------------
+//	INTERRUPT ROUTINE 5
+//	HAS FORK SYSTEM CALL
+//--------------------------------------------------------
+
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+// Getting system call number from the stack and putting it in a register
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+if (sysCallNo == 8) then		//Implementation of Fork system call
+	alias i S2;
+
+//	print("in fork");
+
+	i = 0;
+
+	while(i<32) do			//See if new process can be created
+		if([READY_LIST + i*32 + 1] == 0) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;	
+
+	if(i==32) then			//New process cant be created
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias childPID S3;		//new PID of child process
+	childPID = i;
+
+	[READY_LIST + childPID*32] = childPID;	//setting PID field of the PCB of child process
+
+	alias validpages S4;		//counting the number of valid pages of Parent Process
+	validpages = 0;
+
+	if([PTBR + 1]=="01" || [PTBR + 1]=="11") then
+		validpages = validpages + 1;
+	endif;
+	if([PTBR + 3]=="01" || [PTBR + 3]=="11") then
+		validpages = validpages + 1;
+	endif;
+	if([PTBR + 5]=="01" || [PTBR + 5]=="11") then
+		validpages = validpages + 1;
+	endif;
+	if([PTBR + 7]=="01" || [PTBR + 7]=="11") then
+		validpages = validpages + 1;
+	endif;
+
+//	print(validpages);
+
+	i = 29;
+	alias count S5;
+	count = 0;
+					//see if number of pages equal to valid pages are available in memory
+	while(i<64) do
+		if([MEM_LIST + i] == 0) then
+			count = count + 1;
+		endif;
+		if(count == validpages) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	
+	if(count < validpages) then	//not enough free memory space		
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	i = 29;		//allocating valid number of pages to child process
+	count = 0;
+
+	[PAGE_TABLE + childPID*8 + 0] = -1;
+	[PAGE_TABLE + childPID*8 + 2] = -1;
+	[PAGE_TABLE + childPID*8 + 4] = -1;
+	[PAGE_TABLE + childPID*8 + 6] = -1;
+	[PAGE_TABLE + childPID*8 + 1] = "00";
+	[PAGE_TABLE + childPID*8 + 3] = "00";
+	[PAGE_TABLE + childPID*8 + 5] = "00";
+	[PAGE_TABLE + childPID*8 + 7] = "00";
+
+	while(i<64) do
+		if([MEM_LIST + i] == 0) then
+			if(count==(validpages-1)) then
+				[PAGE_TABLE + childPID*8 + 6] = i;
+				[PAGE_TABLE + childPID*8 + 7] = "01";
+			else
+				[PAGE_TABLE + childPID*8 + count*2] = i;
+				[PAGE_TABLE + childPID*8 + count*2 + 1] = "01";
+			endif;
+			[MEM_LIST + i] = 1;
+			count = count + 1;
+		endif;
+		if(count == validpages) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	
+	i = 1;		//copying the valid pages word by word to child pages
+
+	while(i<8) do
+		if([PTBR + i] == "01" || [PTBR + i] == "11") then
+			count = 0;
+			while(count<512) do
+				[[PAGE_TABLE + childPID*8 + i-1]*512 + count] = [[PTBR + i-1]*512 + count];
+				count = count + 1;
+			endwhile;
+		endif;
+		i = i + 2;
+	endwhile;
+
+	alias PID S6;
+	PID = (PTBR - PAGE_TABLE)/8;
+
+	//update the PCB of child
+	[READY_LIST + childPID*32] = childPID;
+	[READY_LIST + childPID*32 + 6] = 4;	
+	[READY_LIST + childPID*32 + 5] = PAGE_TABLE + childPID*8;
+	[READY_LIST + childPID*32 + 4] = [physicalSP];
+	[READY_LIST + childPID*32 + 3] = SP - 1;
+	[READY_LIST + childPID*32 + 2] = BP;
+	[READY_LIST + childPID*32 + 1] = 1;
+	[READY_LIST + childPID*32 + 7] = R0;
+	[READY_LIST + childPID*32 + 8] = R1;
+	[READY_LIST + childPID*32 + 9] = R2;
+	[READY_LIST + childPID*32 + 10] = R3;
+	[READY_LIST + childPID*32 + 11] = R4;
+	[READY_LIST + childPID*32 + 12] = R5;
+	[READY_LIST + childPID*32 + 13] = R6;
+	[READY_LIST + childPID*32 + 14] = R7;
+	[READY_LIST + childPID*32 + 31] = PID;
+
+
+	i = 0;		//updating the PPOFT and SWOFT  
+
+	while(i<16) do
+		S7 = READY_LIST + childPID*32 + 15 + i;
+	
+		[S7] = [READY_LIST + PID*32 + 15 + i];
+		[S7 + 1] = [READY_LIST + PID*32 + 15 + i+1];	
+	
+		if([S7]!=-1) then
+			[FILE_TABLE + [S7] + 1] = [FILE_TABLE + [S7] + 1] + 1;
+		endif;
+		i = i + 2;
+	endwhile; 
+
+	[physicalSP - 2] = childPID;	//parent process return value
+
+	alias physicalSP_child S7;
+	physicalSP_child = ([PAGE_TABLE + childPID*8 + 2*((SP-1)/512)]*512) + ((SP-1) % 512);
+
+	[physicalSP_child - 1] = -2;	//child process return value		
+
+	ireturn;
+endif;
+
+
+[physicalSP - 2] = -1;
+ireturn;
+
+	
+
+	
+	
+
+			
+			
+		
+
+
+
+
+
+
+
+

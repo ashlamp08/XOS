@@ -1,0 +1,100 @@
+//---------------------------------------------
+//	SAVING CONTEXT OF CURRENT PROCESS
+//---------------------------------------------
+
+//print("Timer");
+
+alias currentPID S0;				//finding current PID
+currentPID = (PTBR - 1024) / 8;
+
+alias currentPCB S1;
+currentPCB = READY_LIST + 32*currentPID;	//finding current PCB from PID
+
+[currentPCB + 1] = 1; 				//setting STATE to READY
+
+[currentPCB + 2] = BP;				//asigning register values
+[currentPCB + 3] = SP - 1;			
+
+alias physicalSP S2;
+physicalSP = ([PTBR + 2*(SP/512)] * 512) + (SP%512);	//physical SP from logical SP
+
+[currentPCB + 4] = [physicalSP];		//Save IP to PCB
+
+[currentPCB + 5] = PTBR;			//saving registers		
+[currentPCB + 6] = PTLR;
+
+[currentPCB + 7] = R0;
+[currentPCB + 8] = R1;
+[currentPCB + 9] = R2;
+[currentPCB + 10] = R3;
+[currentPCB + 11] = R4;
+[currentPCB + 12] = R5;
+[currentPCB + 13] = R6;
+[currentPCB + 14] = R7;
+
+//-----------------------------------------------
+//	ROUND ROBIN SCHEDULER
+//-----------------------------------------------
+
+alias i S3;
+
+i = currentPID + 1; 
+
+while(i<32) do
+        currentPCB = READY_LIST + 32*i;
+	if([currentPCB + 1] == 1) then
+		break;
+	endif;
+	i = i + 1;
+endwhile;
+
+if(i==32) then
+	i = 0;
+	while(i<currentPID) do 
+		currentPCB = READY_LIST + 32*i;
+		if([currentPCB + 1] == 1) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+endif;
+
+currentPID = i;
+currentPCB = READY_LIST + 32*currentPID;
+
+//-----------------------------------------------
+//	LOADING CONTEXT OF NEXT PROCESS
+//-----------------------------------------------
+
+
+[currentPCB + 1] = 2;                           //setting STATE to RUNNING
+
+BP = [currentPCB + 2];                          //Loading register values
+SP = [currentPCB + 3];
+
+PTBR = [currentPCB + 5];                      
+PTLR = [currentPCB + 6];
+
+R0 = [currentPCB + 7];
+R1 = [currentPCB + 8];
+R2 = [currentPCB + 9];
+R3 = [currentPCB + 10];
+R4 = [currentPCB + 11];
+R5 = [currentPCB + 12];
+R6 = [currentPCB + 13];
+R7 = [currentPCB + 14];
+
+SP = SP + 1;					//Pushing the ip from PCB to stack
+alias newphysicalSP S2;
+
+newphysicalSP = ([PTBR + 2*(SP/512)]*512) + (SP%512);
+[newphysicalSP] = [currentPCB + 4];
+
+// print(currentPID);
+
+ireturn;
+
+
+
+
+

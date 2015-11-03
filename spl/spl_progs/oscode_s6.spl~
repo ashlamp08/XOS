@@ -1,0 +1,83 @@
+//----------------------------------------
+//	EXCEPTION HANDLER AND INTERRUPTS
+//----------------------------------------
+
+
+load (7,1);		//loading exception handler from disk to memory
+load (8,2);
+load (23,17);		//loading interrupt 7 program from disk to memory
+load (24,18);		
+load (11,5);		//loading interrupt 1 program from disk to memory
+load (12,6);
+load (9,3);		//loading timer interrupt program from disk to memory
+load (10,4);
+
+//--------------------------PCB STRUCTURE-----------------------------
+//--------------------------------------------------------------------
+//  0  |   1   |  2 |  3 |  4 |   5  |   6  |  7-14   | 15-30 |  31  |
+// PID | STATE | BP | SP | IP | PTBR | PTLR | R0 - R7 | PPOFT | Free |
+//--------------------------------------------------------------------
+
+//----------------------------------------
+//	INIT PROCESS
+//----------------------------------------
+
+[READY_LIST + 0] = 0;	//setting pid of init process
+
+load(25,21);		//loading INIT program
+load(26,22);
+load(27,23);
+
+PTBR = 1024;		//page table base register to the beginning of per-process
+PTLR = 4;		//page table
+
+[PTBR + 0] = 25;	//setting page table for init program
+[PTBR + 1] = "01";
+[PTBR + 2] = 26;
+[PTBR + 3] = "01";
+[PTBR + 4] = 27;
+[PTBR + 5] = "01";
+[PTBR + 6] = 28;
+[PTBR + 7] = "01";
+
+[READY_LIST + 1] = 2;	//setting the process state to running
+[READY_LIST + 2] = 3*512;	//setting PCB of init process
+[READY_LIST + 3] = 3*512;
+[READY_LIST + 4] = 0;
+[READY_LIST + 5] = 1024;
+[READY_LIST + 6] = 4;
+
+
+//-----------------------------------------
+//	PROCESS 1
+//-----------------------------------------
+
+[READY_LIST + 32] = 1;	//setting PID of process 1
+
+load(29,25);
+
+alias PTBR_Process1 S0;		//setting up PTBR for process 1
+PTBR_Process1 = 1024 + 1*8;
+
+[PTBR_Process1 + 0] = 29;	//setting up per process page table for process 1
+[PTBR_Process1 + 1] = "01";
+[PTBR_Process1 + 2] = -1;
+[PTBR_Process1 + 3] = "00";
+[PTBR_Process1 + 4] = -1;
+[PTBR_Process1 + 5] = "00";
+[PTBR_Process1 + 6] = 30;
+[PTBR_Process1 + 7] = "01";
+
+[READY_LIST + 33] = 1;		//setting the STATE of process 1 to ready in PCB
+[READY_LIST + 34] = 1536;	//setting process 1 BP
+[READY_LIST + 35] = 1536; 	//setting process 1 SP
+[READY_LIST + 36] = 0;		//setting process 1 IP 
+[READY_LIST + 37] = PTBR_Process1;	//PTBR of Process 1
+[READY_LIST + 38] = 4;		//PTLR of Process 1 
+
+SP = 3 * 512;
+[28 * 512] = 0;
+
+ireturn;
+
+

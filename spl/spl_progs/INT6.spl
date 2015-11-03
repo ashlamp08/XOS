@@ -1,0 +1,186 @@
+//--------------------------------------------------------
+//	INTERRUPT ROUTINE 6
+//	HAS EXEC SYSTEM CALL
+//--------------------------------------------------------
+
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+// Getting system call number from the stack and putting it in a register
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+if (sysCallNo == 9) then		//Implementation of Exec system call
+	alias i S2;
+	alias filename S3;
+	alias count S4;
+	alias basicblock S5;
+	alias validpages S6;
+	alias j S7;
+//	print("in exec");
+
+	filename = [physicalSP - 3];	//loading filename from arguments
+
+	i = 0;
+
+	while(i<64) do			//searching for file in FAT
+		if([FAT + i*8] == filename) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+
+	if(i==64) then			//No such file
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	basicblock = [FAT + i*8 + 2];
+
+	load(1,basicblock);	//loading basic block to the scratchpad
+
+	count = 0;
+
+	while(count<4) do			//checking number of datablocks
+		if([SCRATCHPAD + count]!=-1 && [SCRATCHPAD + count]!="") then
+			count = count + 1;
+		else
+			break;
+		endif;
+	endwhile;
+
+	if(count==4) then			//data blocks more than 3
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	validpages = 0;				//counting the number of valid pages
+
+	if([PTBR + 1]=="01" || [PTBR + 1]=="11") then
+		validpages = validpages + 1;
+	endif;
+	if([PTBR + 3]=="01" || [PTBR + 3]=="11") then
+		validpages = validpages + 1;
+	endif;
+	if([PTBR + 5]=="01" || [PTBR + 5]=="11") then
+		validpages = validpages + 1;
+	endif;
+	if([PTBR + 7]=="01" || [PTBR + 7]=="11") then
+		validpages = validpages + 1;
+	endif;
+
+	if(count<validpages) then 	//current process has more code pages than the code blocks of the new program
+		i = count;
+		while(i<(validpages-1)) do
+			[MEM_LIST + [PTBR + i*2]] = 0;
+			[PTBR + i*2] = -1; 
+			[PTBR + i*2 + 1] = "00";
+			i = i + 1;
+		endwhile;
+	else				//new program has more code blocks
+		S8 = count - validpages + 1;
+		j = 0;
+		i = 25;
+		while(j!=S8 && i<64) do
+			if([MEM_LIST + i] == 0) then
+				[PTBR + (validpages-1)*2 + j*2] = i;
+				j = j + 1;	
+			endif;
+			i = i + 1;
+		endwhile;
+
+		if(j!=S8) then		//not enough memory pages		
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+
+		i = validpages-1;	//setting up newly added pages
+		
+		while(i<count) do
+			[MEM_LIST + [PTBR + i*2]] = 1;
+			[PTBR + i*2 + 1] = "01";
+			i = i + 1;
+		endwhile;
+	endif;
+
+	i = 0;				//loading the data blocks to memory of new process
+
+	while(i<count) do
+		load([PTBR + i*2],[SCRATCHPAD + i]);
+		i = i + 1;
+	endwhile;
+
+	alias currentPCB S8;
+	currentPCB = READY_LIST + 32*((PTBR - 1024) / 8);	//finding current PCB
+
+	alias fileDes S9;	
+
+	fileDes = 0;
+	
+	while(fileDes<8) do			//close all open files
+		i = fileDes*2 + 15;	
+
+		if([currentPCB + i]!=-1) then		//close the file
+			j = [currentPCB + i];
+	
+			[FILE_TABLE + j + 1] = [FILE_TABLE + j + 1] - 1;	
+
+			if([FILE_TABLE + j + 1] == 0) then	//if file is no more open anywhere, set FAT Index entry to -1
+				[FILE_TABLE + j] = -1;
+			endif;
+
+			[currentPCB + i + 0] = -1;	//Invalidating the PPOFT entry
+			[currentPCB + i + 1] = -1;
+		endif;
+	
+		fileDes = fileDes + 1;
+	endwhile;
+
+	SP = 3*512;				//reset the SP
+
+	[[PTBR + 6]*512] = 0;			//0 to top of stack of new process
+
+	[physicalSP - 2] = 0;
+
+	ireturn;
+endif;
+
+if (sysCallNo == 11) then			//implementing getpid
+
+	[physicalSP - 2] = (PTBR - 1024)/8;
+	ireturn;
+endif;
+
+if (sysCallNo == 12) then			//implement getppid
+
+	alias PID S2;
+	PID = (PTBR - 1024)/8;
+
+	[physicalSP - 2] = [READY_LIST + 31];
+	ireturn;
+endif;		
+
+[physicalSP - 2] = -1;
+ireturn;
+	
+		
+			
+			
+		
+
+		
+
+		
+
+
+
+		
+
+		
+	
+
+
+		
+			

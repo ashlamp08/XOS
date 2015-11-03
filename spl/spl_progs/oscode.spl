@@ -1,0 +1,36 @@
+load (7,1);		//loading exception handler from disk to memory
+load (8,2);
+load (23,17);		//loading interrupt 7 program from disk to memory
+load (24,18);		
+load (11,5);		//loading interrupt 1 program from disk to memory
+load (12,6);
+load (9,3);		//loading timer interrupt program from disk to memory
+load (10,4);
+
+[READY_LIST + 0] = 0;	//setting pid of init process
+
+load(25,21);		//loading INIT program
+load(26,22);
+load(27,23);
+
+PTBR = 1024;		//page table base register to the beginning of per-process
+PTLR = 4;		//page table
+
+[PTBR + 0] = 25;	//setting page table for init program
+[PTBR + 1] = "01";
+[PTBR + 2] = 26;
+[PTBR + 3] = "01";
+[PTBR + 4] = 27;
+[PTBR + 5] = "01";
+[PTBR + 6] = 28;
+[PTBR + 7] = "01";
+
+[READY_LIST + 1] = 2;	//setting the process state to running
+
+SP = 3 * 512;
+
+[28 * 512] = 0;
+
+ireturn;
+
+

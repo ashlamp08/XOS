@@ -1,0 +1,130 @@
+//--------------------------------------------------------
+//	INTERRUPT ROUTINE 4
+//	HAS WRITE FEATURE
+//--------------------------------------------------------
+
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+// Getting system call number from the stack and putting it in a register
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+
+
+if (sysCallNo == 5) then 	//Implementing write system call
+	
+	// Store arguments in register
+
+	alias fileDes S2;
+	alias data S3;
+
+	fileDes = [physicalSP - 4];
+	data = [physicalSP - 3];
+
+	if((fileDes < 0) || (fileDes > 7)) then		//invalid FileDescriptor
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias currentPCB S4;
+	currentPCB = READY_LIST + 32*((PTBR - 1024) / 8);	//finding current PCB
+		
+	S5 = fileDes*2 + 15;	
+
+	if([currentPCB + S5] == -1) then		//invalid entry
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias pointer S6;
+	alias LSEEK S7;
+
+	pointer = [currentPCB + S5];			//store pointer to SWOFT
+	LSEEK = [currentPCB + S5 + 1];		//store LSEEK position
+
+	alias basic S8;
+
+	basic = [FAT + [FILE_TABLE + pointer]*8 + 2];	//basic block
+
+	load(1,basic);				//load basic block to scratchpad
+
+	alias j S2;
+
+	j = [SCRATCHPAD + LSEEK/512];   //data block
+
+
+	if(j == -1) then	//new data block needed
+		j = 24;
+
+		while ((j < 448) && ([DISK_LIST + j] != 0)) do	// finding next free block
+			j = j+1;	
+		endwhile;
+
+		if(j == 448) then		//no free block found
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+
+		[DISK_LIST + j] = 1;		//change disk free list
+
+		[SCRATCHPAD + LSEEK/512] = j; 	//adding block to basic block 
+
+		store(1,basic);			 //save basic block to disk
+
+		S9 = [FAT + [FILE_TABLE + pointer]*8 + 1];
+
+		S9 = S9 + 512;			//changing file size
+		
+		[FAT + [FILE_TABLE + pointer]*8 + 1] = S9;
+
+		store (5,19);			// storing FAT to disk 
+		store (6,20);			// storing Disk Free List to disk
+	endif;
+
+
+	load(1,j);				//load data block to scratchpad 
+			
+	[SCRATCHPAD + LSEEK%512] = data;	//writing the arguement into datablock
+
+	store(1,j);				//store data block to scratchpad	
+
+	LSEEK = LSEEK + 1;
+
+	[currentPCB + S5 + 1] = LSEEK;		//saving LSEEK position in PPOFT
+
+
+	[physicalSP - 2] = 0; //return success
+	ireturn;
+
+endif;	
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
+
+

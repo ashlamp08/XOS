@@ -1,0 +1,199 @@
+//--------------------------------------------------------
+//	INTERRUPT ROUTINE 1 
+//	HAS CREATE FILE AND DELETE FILE FEATURE
+//--------------------------------------------------------
+
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+// Getting system call number from the stack and putting it in a register
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+// Getting arguement filename from stack and storing in register
+
+alias filename S2;
+filename = [physicalSP - 3];
+
+if (sysCallNo == 1) then		//Implementation of Create system call
+	alias i S3;
+	alias found S4;
+	alias j S5;
+		
+	found = 0;	
+	i = 0;
+
+	while ((i<64)) do		//checking if the file is already there
+		if (filename == [FAT + (8*i)]) then
+			found = 1;
+			break;
+		endif;		
+		i = i+1;
+	endwhile;
+
+	if (found == 1) then		// file is found
+		[physicalSP - 2] = 0;
+		ireturn;
+	else				
+		j = 24;						//searching disk free list
+		while((j<488) && ([DISK_LIST + j] == 1)) do 
+			j = j+1;
+		endwhile;
+		
+		if(j == 488) then		//disk free list is full
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+
+		i = 0;
+
+		while((i<64) && ([FAT + (8*i) + 2] != -1)) do	//searching FAT
+			i = i + 1;		
+		endwhile;
+
+		if(i == 64) then		//FAT is full
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+	endif;
+
+	[DISK_LIST + j] = 1;		// new block occupied
+	[FAT + (8*i)] = filename;	// filename added to FAT
+	[FAT + (8*i) + 1] = 0;		// filesize added to FAT
+	[FAT + (8*i) + 2] = j;		// basic block added to FAT
+
+	load(1,j);			// loading basic block of new file to scratchpad
+
+	S6 = 0;			
+
+	while(S6<256) do		// setting up the basic block of new file
+		[SCRATCHPAD + S6] = -1;
+		S6 = S6 + 1;
+	endwhile;
+
+	store (1,j);			// storing the basic block back to disk
+	store (5,19);			// storing FAT to disk 
+	store (6,20);			// storing Disk Free List to disk
+
+	[physicalSP - 2] = 0;
+	ireturn;
+endif;
+
+
+
+
+if (sysCallNo == 4) then		//Implementing Delete System Call
+	
+	alias i S3;
+	alias found S4;
+	alias j S5;
+		
+	found = 0;	
+	i = 0;
+
+	while ((i<64)) do		//checking if the file is there in FAT
+		if (filename == [FAT + (8*i)]) then
+			found = 1;
+			break;
+		endif;		
+		i = i+1;
+	endwhile;
+
+	if (found == 0) then		// file is not found
+		print("not in FAT");		
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	j = 0;
+
+	while (j<128) do		//checking if the file is open in system wide open file table
+		S4 = [FILE_TABLE + j]; 
+		if(S4 != -1) then
+			if(filename == [FAT + 8*S4]) then 
+				break;
+			endif;
+		endif;
+		j = j+2;
+	endwhile;
+
+	if (j < 128) then		//file is OPEN
+		print("file is Open");		
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias basicblock S5;
+
+	basicblock = [FAT + (8*i) + 2];	//extract basic block no from FAT;
+
+	
+	S6 = 0;
+
+	while(S6 < 256) do
+		load(1,basicblock);	//load basic block to Scratchpad
+		
+		if([SCRATCHPAD + S6] == -1) then	//check if datablock is invalid
+			break;
+		endif;
+
+		S8 = [SCRATCHPAD + S6];
+
+		load(1,S8);		//load valid datablock to scratchpad
+
+		S7 = 0;			
+
+		while(S7 < 512) do		// erasing the datablock
+			[SCRATCHPAD + S7] = "";
+			S7 = S7 + 1;
+		endwhile;
+
+		store(1,S8);		//saving the data block
+	
+		[DISK_LIST + S8] = 0;	//changing the disk free list
+		
+		S6 = S6 + 1;
+
+	endwhile;
+
+	load(1,basicblock);	
+
+	S7 = 0;			
+
+	while(S7 < 256) do		// erasing the basic block
+		[SCRATCHPAD + S7] = "";
+		S7 = S7 + 1;
+	endwhile;
+
+	store(1,basicblock);
+	
+	[DISK_LIST + basicblock] = 0;	//changing the disk free list
+	
+	[FAT + (8*i) + 0] = -1;		//invalidate FAT entry
+	[FAT + (8*i) + 1] = 0;
+	[FAT + (8*i) + 2] = -1;
+
+	store (5,19);			// storing FAT to disk 
+	store (6,20);			// storing Disk Free List to disk
+
+	[physicalSP - 2] = 0;		//return
+	ireturn;
+endif;
+	
+
+
+
+
+
+
+
+	
+
+
+		
+			
+			
+	
+	

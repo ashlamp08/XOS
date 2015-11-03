@@ -1,0 +1,108 @@
+//----------------------------------------
+//	EXCEPTION HANDLER AND INTERRUPTS
+//----------------------------------------
+
+
+load (7,1);		//loading exception handler from disk to memory
+load (8,2);	
+load (11,5);		//loading interrupt 1 program from disk to memory
+load (12,6);
+load (13,7);		//loading interrupt 2 program from disk to memory
+load (14,8);
+load (15,9);		//loading interrupt 3 program from disk to memory
+load (16,10);
+load (17,11);		//loading interrupt 4 program from disk to memory
+load (18,12);
+load (19,13);		//loading interrupt 5 program from disk to memory
+load (20,14);
+load (21,15);		//loading interrupt 6 program from disk to memory
+load (22,16);
+load (23,17);		//loading interrupt 7 program from disk to memory
+load (24,18);	
+load (9,3);		//loading timer interrupt program from disk to memory
+load (10,4);
+load (5,19);		//loading FAT from disk to memory
+load (6,20);		//loading Disk Free List from disk to memory
+
+//--------------------------PCB STRUCTURE-----------------------------
+//--------------------------------------------------------------------
+//  0  |   1   |  2 |  3 |  4 |   5  |   6  |  7-14   | 15-30 |  31  |
+// PID | STATE | BP | SP | IP | PTBR | PTLR | R0 - R7 | PPOFT | PPID |
+//--------------------------------------------------------------------
+
+//setting system wide open file table
+
+alias counter S0;
+counter = 0;
+
+while (counter<128) do		
+	[FILE_TABLE + counter + 0] = -1;	//pointer to FAT set to -1
+	[FILE_TABLE + counter + 1] = 0;		//file open count set to 0
+	counter = counter + 2;
+endwhile;
+
+//setting memory free list
+
+counter = 0;
+
+while(counter<=28) do
+	[MEM_LIST + counter] = 1;		//setting memory blocks 0 to 28 as used
+	counter = counter + 1;
+endwhile;
+
+while(counter<64) do
+	[MEM_LIST + counter] = 0;		//setting memory blocks 29 to 63 as used
+	counter = counter + 1;
+endwhile;
+
+//setting PCB's. Setting process STATUS as 0
+
+counter = 0;
+
+while(counter<32) do
+	[READY_LIST + 32*counter + 1] = 0;
+	counter = counter + 1;
+endwhile;
+
+
+//----------------------------------------
+//	INIT PROCESS
+//----------------------------------------
+
+[READY_LIST + 0] = 0;	//setting pid of init process
+
+load(25,21);		//loading INIT program
+load(26,22);
+load(27,23);
+
+PTBR = 1024;		//page table base register to the beginning of per-process
+PTLR = 4;		//page table
+
+[PTBR + 0] = 25;	//setting page table for init program
+[PTBR + 1] = "01";
+[PTBR + 2] = 26;
+[PTBR + 3] = "01";
+[PTBR + 4] = 27;
+[PTBR + 5] = "01";
+[PTBR + 6] = 28;
+[PTBR + 7] = "01";
+
+counter = 15;		//setting up per process open file table
+
+while (counter <= 30) do
+	[READY_LIST + counter + 0] = -1;	//pointer to system wide open file table set to -1
+	[READY_LIST + counter + 1] = -1;	//LSEEK position set to -1
+	counter = counter + 2;
+endwhile;
+
+[READY_LIST + 31] = 0;	//setting Parent PID
+
+[READY_LIST + 1] = 2;	//setting the process state to running
+
+SP = 3 * 512;
+
+[28 * 512] = 0;
+
+ireturn;
+
+
