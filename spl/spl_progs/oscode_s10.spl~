@@ -45,7 +45,7 @@ endwhile;
 
 counter = 0;
 
-while(counter<=28) do
+while(counter<=24) do
 	[MEM_LIST + counter] = 1;		//setting memory blocks 0 to 28 as used
 	counter = counter + 1;
 endwhile;
@@ -65,6 +65,15 @@ while(counter<32) do
 	counter = counter + 1;
 endwhile;
 
+//Clearing Swapsapce in the memory copy of the disk freelist
+
+counter = 448;
+
+while(counter<512) do
+	[DISK_LIST + counter] = 0;
+	counter = counter + 1;
+endwhile;
+
 
 //----------------------------------------
 //	INIT PROCESS
@@ -72,21 +81,23 @@ endwhile;
 
 [READY_LIST] = 0;	//setting pid of init process
 
-load(25,21);		//loading INIT program
-load(26,22);
-load(27,23);
+//load(25,21);		//loading INIT program
+//load(26,22);
+//load(27,23);
 
 PTBR = 1024;		//page table base register to the beginning of per-process
 PTLR = 4;		//page table
 
-[PTBR + 0] = 25;	//setting page table for init program
+[PTBR + 0] = 21;	//setting page table for init program
 [PTBR + 1] = "00";
-[PTBR + 2] = 26;
+[PTBR + 2] = 22;
 [PTBR + 3] = "00";
-[PTBR + 4] = 27;
+[PTBR + 4] = 23;
 [PTBR + 5] = "00";
 [PTBR + 6] = 28;
-[PTBR + 7] = "00";
+[PTBR + 7] = "01";
+
+[MEM_LIST + 28] = 1;	//stack is allocated in memory
 
 counter = 15;		//setting up per process open file table
 

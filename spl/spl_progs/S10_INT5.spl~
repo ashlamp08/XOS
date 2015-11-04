@@ -103,8 +103,6 @@ if (sysCallNo == 8) then		//Implementation of Fork system call
 			[DISK_LIST + i] = [DISK_LIST + i] + 1;
 		endif;  
 	endif;
-
-	store (6,20);
 	
 	alias PID S6;
 	PID = (PTBR - PAGE_TABLE)/8;

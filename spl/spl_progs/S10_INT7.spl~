@@ -72,11 +72,19 @@ if (sysCallNo == 10) then		//Implementation of Exit system call
 	i = 0;
 
 	while(i<4) do				//update memory free list and invalidate pagetable entries
-		if([PTBR + 2*i + 1]=="01" || [PTBR + 2*i + 1]=="11") then
-			[MEM_LIST + [PTBR + i*2]] = 0;
+		S6 = PTBR + i*2; 
+		
+		if([S6 + 1]=="01" || [S6 + 1]=="11") then
+			[MEM_LIST + [S6]] = [MEM_LIST + [S6]] - 1;
 		endif;
-		[PTBR + i*2] = -1;
-		[PTBR + i*2 + 1] = "00";
+		else
+			if([S6]>=448) then	
+				[DISK_LIST + [S6]] = [DISK_LIST + [S6]] - 1; 
+			endif;	
+		endif;	
+		
+		[S6] = -1;
+		[S6 + 1] = "00";
 		i = i + 1;
 	endwhile;
 
@@ -121,7 +129,6 @@ if (sysCallNo == 10) then		//Implementation of Exit system call
 
 	ireturn;
 endif;
-
 
 if (sysCallNo == 13) then			//implementing wait system call
 	

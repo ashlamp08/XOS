@@ -1,0 +1,162 @@
+//--------------------------------------------------------
+//	INTERRUPT ROUTINE 6
+//	HAS EXEC SYSTEM CALL
+//--------------------------------------------------------
+
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+// Getting system call number from the stack and putting it in a register
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+if (sysCallNo == 9) then		//Implementation of Exec system call
+	alias i S2;
+	alias filename S3;
+	alias count S4;
+	alias basicblock S5;
+	alias j S7;
+//	print("in exec");
+
+	filename = [physicalSP - 3];	//loading filename from arguments
+
+	i = 0;
+
+	while(i<64) do			//searching for file in FAT
+		if([FAT + i*8] == filename) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+
+	if(i==64) then			//No such file
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	basicblock = [FAT + i*8 + 2];	//find the basic block
+
+	load(1,basicblock);	//loading basic block to the scratchpad
+
+	//update MEM_LIST and DISK_LIST
+
+	if([PTBR + 1]=="01" || [PTBR + 1]=="11") then	
+		i = [MEM_LIST + [PTBR + 0]]; 
+		i = i - 1;
+	else
+		i = [MEM_LIST + [PTBR + 0]];
+		if(i>=448) then
+			[DISK_LIST + i] = [DISK_LIST + i] - 1;
+		endif;  
+	endif;
+	if([PTBR + 3]=="01" || [PTBR + 3]=="11") then
+		i = [MEM_LIST + [PTBR + 2]]; 
+		i = i - 1;
+	else
+		i = [MEM_LIST + [PTBR + 2]];
+		if(i>=448) then
+			[DISK_LIST + i] = [DISK_LIST + i] - 1;
+		endif;  
+	endif;
+	if([PTBR + 5]=="01" || [PTBR + 5]=="11") then
+		i = [MEM_LIST + [PTBR + 4]]; 
+		i = i - 1;
+	else
+		i = [MEM_LIST + [PTBR + 4]];
+		if(i>=448) then
+			[DISK_LIST + i] = [DISK_LIST + i] - 1;
+		endif;  
+	endif;
+
+	store (6,20);
+
+	//initialize the page table entries with disk addresses
+
+	count = 0;
+
+	while(count<3) do
+		if([SCRATCHPAD + count]!=-1 && [SCRATCHPAD + count]!="") then
+			[PTBR + count*2] = -1;
+		else
+			[PTBR + count*2] = [SCRATCHPAD + count]; 
+		endif;
+		[PTBR + count*2 + 1] = "00";
+		count = count + 1;
+	endwhile;
+
+	[PTBR + 7] = "01";
+
+	alias currentPCB S8;
+	currentPCB = READY_LIST + 32*((PTBR - 1024) / 8);	//finding current PCB
+
+	alias fileDes S9;	
+
+	fileDes = 0;
+	
+	while(fileDes<8) do			//close all open files
+		i = fileDes*2 + 15;	
+
+		if([currentPCB + i]!=-1) then		//close the file
+			j = [currentPCB + i];
+	
+			[FILE_TABLE + j + 1] = [FILE_TABLE + j + 1] - 1;	
+
+			if([FILE_TABLE + j + 1] == 0) then	//if file is no more open anywhere, set FAT Index entry to -1
+				[FILE_TABLE + j] = -1;
+			endif;
+
+			[currentPCB + i + 0] = -1;	//Invalidating the PPOFT entry
+			[currentPCB + i + 1] = -1;
+		endif;
+	
+		fileDes = fileDes + 1;
+	endwhile;
+
+	SP = 3*512;				//reset the SP
+
+	[[PTBR + 6]*512] = 0;			//0 to top of stack of new process
+
+	[physicalSP - 2] = 0;
+
+	ireturn;
+endif;
+
+if (sysCallNo == 11) then			//implementing getpid
+
+	[physicalSP - 2] = (PTBR - 1024)/8;
+	ireturn;
+endif;
+
+if (sysCallNo == 12) then			//implement getppid
+
+	alias PID S2;
+	PID = (PTBR - 1024)/8;
+
+	[physicalSP - 2] = [READY_LIST + 31];
+	ireturn;
+endif;		
+
+[physicalSP - 2] = -1;
+ireturn;
+	
+		
+			
+			
+		
+
+		
+
+		
+
+
+
+		
+
+		
+	
+
+
+		
+			
