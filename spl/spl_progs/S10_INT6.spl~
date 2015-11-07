@@ -3,7 +3,6 @@
 //	HAS EXEC SYSTEM CALL
 //--------------------------------------------------------
 
-
 alias physicalSP S0;
 physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
 
@@ -18,7 +17,8 @@ if (sysCallNo == 9) then		//Implementation of Exec system call
 	alias count S4;
 	alias basicblock S5;
 	alias j S7;
-//	print("in exec");
+	
+	print("in exec");
 
 	filename = [physicalSP - 3];	//loading filename from arguments
 
@@ -32,6 +32,7 @@ if (sysCallNo == 9) then		//Implementation of Exec system call
 	endwhile;
 
 	if(i==64) then			//No such file
+		print("no such file");
 		[physicalSP - 2] = -1;
 		ireturn;
 	endif;
@@ -43,39 +44,40 @@ if (sysCallNo == 9) then		//Implementation of Exec system call
 	//update MEM_LIST and DISK_LIST
 
 	if([PTBR + 1]=="01" || [PTBR + 1]=="11") then	
-		i = [MEM_LIST + [PTBR + 0]]; 
-		i = i - 1;
+		i = MEM_LIST + [PTBR + 0];
+		[i] = [i] - 1;
 	else
-		i = [MEM_LIST + [PTBR + 0]];
+		i = [PTBR + 0];
 		if(i>=448) then
 			[DISK_LIST + i] = [DISK_LIST + i] - 1;
 		endif;  
 	endif;
 	if([PTBR + 3]=="01" || [PTBR + 3]=="11") then
-		i = [MEM_LIST + [PTBR + 2]]; 
-		i = i - 1;
+		i = MEM_LIST + [PTBR + 2];
+		[i] = [i] - 1;
 	else
-		i = [MEM_LIST + [PTBR + 2]];
+		i = [PTBR + 2];
 		if(i>=448) then
 			[DISK_LIST + i] = [DISK_LIST + i] - 1;
 		endif;  
 	endif;
 	if([PTBR + 5]=="01" || [PTBR + 5]=="11") then
-		i = [MEM_LIST + [PTBR + 4]]; 
-		i = i - 1;
+		i = MEM_LIST + [PTBR + 4]; 
+		[i] = [i] - 1;
 	else
-		i = [MEM_LIST + [PTBR + 4]];
+		i = [PTBR + 4];
 		if(i>=448) then
 			[DISK_LIST + i] = [DISK_LIST + i] - 1;
 		endif;  
 	endif;
+	store (6,20);
 
 	//initialize the page table entries with disk addresses
 
 	count = 0;
 
 	while(count<3) do
-		if([SCRATCHPAD + count]!=-1 && [SCRATCHPAD + count]!="") then
+		if([SCRATCHPAD + count]==-1 || [SCRATCHPAD + count]=="") then
 			[PTBR + count*2] = -1;
 		else
 			[PTBR + count*2] = [SCRATCHPAD + count]; 
@@ -132,7 +134,7 @@ if (sysCallNo == 12) then			//implement getppid
 	alias PID S2;
 	PID = (PTBR - 1024)/8;
 
-	[physicalSP - 2] = [READY_LIST + 31];
+	[physicalSP - 2] = [READY_LIST + PID*32 + 31];
 	ireturn;
 endif;		
 

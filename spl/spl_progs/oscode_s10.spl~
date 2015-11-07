@@ -74,6 +74,8 @@ while(counter<512) do
 	counter = counter + 1;
 endwhile;
 
+store (6,20);
+
 
 //----------------------------------------
 //	INIT PROCESS
@@ -94,10 +96,10 @@ PTLR = 4;		//page table
 [PTBR + 3] = "00";
 [PTBR + 4] = 23;
 [PTBR + 5] = "00";
-[PTBR + 6] = 28;
+[PTBR + 6] = 25;
 [PTBR + 7] = "01";
 
-[MEM_LIST + 28] = 1;	//stack is allocated in memory
+[MEM_LIST + 25] = 1;	//stack is allocated in memory
 
 counter = 15;		//setting up per process open file table
 
@@ -113,7 +115,7 @@ endwhile;
 
 SP = 3 * 512;
 
-[28 * 512] = 0;
+[25 * 512] = 0;
 
 ireturn;
 

@@ -1,5 +1,7 @@
 integer main()
 {
+	
+	print("->");
 	string a;
 	read(a);
 
@@ -19,7 +21,6 @@ integer main()
 	else
 	//	print("in parent");
 		p = Wait(x);
-		print("hellopasa");		
 		p = Exec("shell.xsm");
 	endif;
 

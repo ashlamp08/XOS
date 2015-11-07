@@ -52,11 +52,11 @@ if (sysCallNo == 10) then		//Implementation of Exit system call
 
 		if([currentPCB + i]!=-1) then		//close the file
 			j = [currentPCB + i];
-			S6 = [FILE_TABLE + j + 1];	
+			S7 = [FILE_TABLE + j + 1];	
 
-			S6 = S6 - 1;	
+			S7 = S7 - 1;	
 
-			if(S6 == 0) then	//if file is no more open anywhere, set FAT Index entry to -1
+			if(S7 == 0) then	//if file is no more open anywhere, set FAT Index entry to -1
 				[FILE_TABLE + j] = -1;
 			endif;
 
@@ -138,7 +138,7 @@ if (sysCallNo == 13) then			//implementing wait system call
 
 	S4 = [READY_LIST + WaitingPID*32 + 1];
 
-	if(WaitingPID<0 || WaitingPID>31 || (S4 == 2) || (S4 == 0)) then
+	if(WaitingPID<0 || WaitingPID>31 || (S4 ==2) || (S4 == 0)) then
 		[physicalSP - 2] = -1;
 		ireturn;
 	endif;

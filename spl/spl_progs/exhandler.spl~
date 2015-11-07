@@ -1,0 +1,217 @@
+//----------------------------------------------
+//	EXCEPTION HANDLER
+//----------------------------------------------
+
+//Extracting details from EFR 
+
+//print("in exhandler");
+
+alias Cause S0;
+alias VPagenum S1;
+alias Ip_addr S2;
+
+Cause = EFR % 10; 		//get value of cause field of 1 digit
+VPagenum = (EFR / 10) % 100;	//get value of BadVaddr of 2 digit
+Ip_addr = (EFR/1000);		//get value of IP of 5 digit
+
+//print("Vpage");
+//print([PTBR + VPagenum*2]);
+
+if(Cause == 1) then
+	print("Illegal Instruction");
+endif;
+if(Cause == 2) then
+	print("Illegal Memory Access");
+endif;
+if(Cause == 3) then
+	print("Arithmetic Exception");
+endif;
+if(Cause == 4) then
+	print("Illegal Operands");
+endif;
+
+if(Cause!=0) then		//exit the process
+	SP = SP + 1;
+	alias physicalSP S3;
+	physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+	[physicalSP - 1] = 10;		
+		
+	inline "JMP 11776";
+endif;
+
+////////////  Page Fault  ////////////////
+
+if([PTBR + VPagenum*2] == -1) then			//exit the process
+	SP = SP + 1;
+	alias physicalSP S3;
+	physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+	[physicalSP - 1] = 10;		
+		
+	inline "JMP 11776";
+endif;
+
+alias i S4;
+alias j S5;
+
+
+i = 0;
+j=0;
+
+while(i<32) do
+	S7 = PAGE_TABLE + 8*i;
+	if(([S7 + 1] == "01") || ([S7 + 1] == "00")) then
+		j = j + 1; 
+	endif;	
+	if(([S7 + 3] == "01") || ([S7 + 3] == "00")) then
+		j = j + 1;
+	endif;
+	if(([S7 + 5] == "01") || ([S7 + 5] == "00")) then
+		j = j + 1;	
+	endif;
+	if(([S7 + 7] == "01") || ([S7 + 7] == "00")) then
+		j = j + 1;	
+	endif;
+	i = i + 1;
+endwhile;
+
+//if(j==0) then
+//	print("Count 0");
+//else
+//	print("Count is");
+//	print(j);
+//endif;
+
+
+i = 25;					//search for a free memory page
+
+while(i<64) do		
+	if([MEM_LIST + i] == 0) then
+		[MEM_LIST + i] = 1;
+		break;
+	endif;
+	i = i + 1;
+endwhile;
+
+alias pageno S6;
+alias victim S7;
+
+victim = -1;
+
+pageno = i;
+					//no free page found
+if(pageno == 64) then
+	i = PTBR;
+
+	print("enter replacement");
+
+	while(victim==-1) do		//looking for a victim page
+		j = 0;
+		while(j<3) do
+			if([i + 2*j + 1] == "11") then
+				[i + 2*j + 1] = "01";
+			endif;
+			if([i + 2*j + 1] == "01" && [MEM_LIST + [i + 2*j]]==1) then
+				victim = i + 2*j;				
+				break;
+			endif;
+			j = j + 1;
+		endwhile;
+
+		i = i + 8;
+		if(i>=1280) then
+			i = 1024;
+		endif;
+	endwhile;
+
+	i = 448;			//searching for a free block in swap space
+
+	while(i<512) do
+		if([DISK_LIST + i] == 0) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+
+	if(i==512) then			//no free block found exit
+		SP = SP + 1;
+		alias physicalSP S3;
+		physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+		[physicalSP - 1] = 10;		
+			
+		inline "JMP 11776";
+	endif;
+
+	store([victim],i);		//store the the victim page memory
+
+	[DISK_LIST + i] = 1;		//update disk free list
+
+	pageno = [victim]; 
+
+	[victim] = i;
+
+	[victim + 1] = "00";
+
+	store(6,20);	
+endif;
+
+//print(pageno);
+
+alias call_block S8;	
+
+call_block = [PTBR + VPagenum*2];	
+
+//load the page from disk to free memory found or made
+
+if(call_block<448 && call_block>21) then
+	load(pageno,call_block);
+else
+	load(pageno,call_block);
+	[DISK_LIST + call_block] = [DISK_LIST + call_block] - 1; 
+endif;
+
+//setting the physical page number and aux info corresponding to VPagenum 
+
+[PTBR + VPagenum*2] = pageno;			
+[PTBR + VPagenum*2 + 1] = "11";
+
+i = 0;
+
+while(i<32) do
+	if([PAGE_TABLE + 8*i + 1] == "11") then
+		[PAGE_TABLE + 8*i + 1] = "01"; 
+	endif;
+	if([PAGE_TABLE + 8*i + 1] == "10") then
+		[PAGE_TABLE + 8*i + 1] = "00"; 
+	endif;
+	if([PAGE_TABLE + 8*i + 3] == "11") then
+		[PAGE_TABLE + 8*i + 3] = "01"; 
+	endif;
+	if([PAGE_TABLE + 8*i + 3] == "10") then
+		[PAGE_TABLE + 8*i + 3] = "00"; 
+	endif;
+	if([PAGE_TABLE + 8*i + 5] == "11") then
+		[PAGE_TABLE + 8*i + 5] = "01"; 
+	endif;
+	if([PAGE_TABLE + 8*i + 5] == "10") then
+		[PAGE_TABLE + 8*i + 5] = "00"; 
+	endif;		
+	if([PAGE_TABLE + 8*i + 7] == "11") then
+		[PAGE_TABLE + 8*i + 7] = "01"; 
+	endif;
+	if([PAGE_TABLE + 8*i + 7] == "10") then
+		[PAGE_TABLE + 8*i + 7] = "00"; 
+	endif;
+	i = i + 1;
+endwhile;
+
+	
+SP = SP + 1;		//pushing return ip value to stack
+
+alias physicalSP S3;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + (SP % 512);
+
+[physicalSP] = Ip_addr;
+
+//print("exit exhandler");
+
+ireturn; 

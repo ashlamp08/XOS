@@ -38,26 +38,15 @@ physicalSP = ([PTBR + 2*(SP/512)] * 512) + (SP%512);	//physical SP from logical 
 
 alias i S3;
 
-i = currentPID + 1; 
+i = (currentPID + 1)%32 ; 
 
-while(i<32) do
-        currentPCB = READY_LIST + 32*i;
-	if([currentPCB + 1] == 1) then
+while(1) do
+	if([READY_LIST + i*32 + 1] == 1) then
 		break;
+	else
+		i = (i + 1)%32;
 	endif;
-	i = i + 1;
 endwhile;
-
-if(i==32) then
-	i = 0;
-	while(i<currentPID) do 
-		currentPCB = READY_LIST + 32*i;
-		if([currentPCB + 1] == 1) then
-			break;
-		endif;
-		i = i + 1;
-	endwhile;
-endif;
 
 currentPID = i;
 currentPCB = READY_LIST + 32*currentPID;
@@ -90,7 +79,8 @@ alias newphysicalSP S2;
 newphysicalSP = ([PTBR + 2*(SP/512)]*512) + (SP%512);
 [newphysicalSP] = [currentPCB + 4];
 
-print(currentPID);
+//print("pid changed to");
+//print(currentPID);
 
 ireturn;
 
